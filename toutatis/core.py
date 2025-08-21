@@ -6,7 +6,6 @@ from json import dumps, decoder
 import phonenumbers
 from phonenumbers.phonenumberutil import (
     region_code_for_country_code,
-    region_code_for_number,
 )
 import pycountry
 
@@ -29,7 +28,7 @@ def getUserId(username, sessionsId):
         return {"id": None, "error": "Rate limit"}
 
 
-def getInfo(search, sessionId, searchType="username" or "id"):
+def getInfo(search, sessionId, searchType="username"):
     if searchType == "username":
         data = getUserId(search, sessionId)
         if data["error"]:
@@ -65,7 +64,7 @@ def getInfo(search, sessionId, searchType="username" or "id"):
 
 def advanced_lookup(username):
     """
-        Post to get obfuscated login infos
+    Post to get obfuscated login infos
     """
     data = "signed_body=SIGNATURE." + quote_plus(dumps(
         {"q": username, "skip_recovery": "1"},
@@ -80,7 +79,6 @@ def advanced_lookup(username):
             "X-IG-App-ID": "124024574287414",
             "Accept-Encoding": "gzip, deflate",
             "Host": "i.instagram.com",
-            # "X-FB-HTTP-Engine": "Liger",
             "Connection": "keep-alive",
             "Content-Length": str(len(data))
         },
@@ -88,9 +86,9 @@ def advanced_lookup(username):
     )
 
     try:
-        return ({"user": api.json(), "error": None})
+        return {"user": api.json(), "error": None}
     except decoder.JSONDecodeError:
-        return ({"user": None, "error": "rate limit"})
+        return {"user": None, "error": "rate limit"}
 
 
 def main():
@@ -113,20 +111,22 @@ def main():
     print("Informations about     : " + infos["username"])
     print("userID                 : " + infos["userID"])
     print("Full Name              : " + infos["full_name"])
-    print("Verified               : " + str(infos['is_verified']) + " | Is buisness Account : " + str(
+    print("Verified               : " + str(infos['is_verified']) + " | Is business Account : " + str(
         infos["is_business"]))
     print("Is private Account     : " + str(infos["is_private"]))
     print(
         "Follower               : " + str(infos["follower_count"]) + " | Following : " + str(infos["following_count"]))
     print("Number of posts        : " + str(infos["media_count"]))
-    # print("Number of tag in posts : "+str(infos["following_tag_count"]))
-    if infos["external_url"]:
+    if infos.get("external_url"):
         print("External url           : " + infos["external_url"])
-    print("IGTV posts             : " + str(infos["total_igtv_videos"]))
+
+    # ✅ Fix for IGTV field
+    print("IGTV posts             : " + str(infos.get("total_igtv_videos", "N/A")))
+
     print("Biography              : " + (f"""\n{" " * 25}""").join(infos["biography"].split("\n")))
-    print("Linked WhatsApp        : " + str(infos["is_whatsapp_linked"]))
-    print("Memorial Account       : " + str(infos["is_memorialized"]))
-    print("New Instagram user     : " + str(infos["is_new_to_instagram"]))
+    print("Linked WhatsApp        : " + str(infos.get("is_whatsapp_linked", "N/A")))
+    print("Memorial Account       : " + str(infos.get("is_memorialized", "N/A")))
+    print("New Instagram user     : " + str(infos.get("is_new_to_instagram", "N/A")))
 
     if "public_email" in infos.keys():
         if infos["public_email"]:
@@ -134,15 +134,16 @@ def main():
 
     if "public_phone_number" in infos.keys():
         if str(infos["public_phone_number"]):
-            phonenr = "+" + str(infos["public_phone_country_code"]) + " " + str(infos["public_phone_number"])
+            raw_phonenr = "+" + str(infos["public_phone_country_code"]) + str(infos["public_phone_number"])
             try:
-                pn = phonenumbers.parse(phonenr)
+                pn = phonenumbers.parse(raw_phonenr)
+                formatted = phonenumbers.format_number(pn, phonenumbers.PhoneNumberFormat.INTERNATIONAL)
                 countrycode = region_code_for_country_code(pn.country_code)
                 country = pycountry.countries.get(alpha_2=countrycode)
-                phonenr = phonenr + " ({}) ".format(country.name)
-            except:  # except what ??
-                pass  # pass what ??
-            print("Public Phone number    : " + phonenr)
+                formatted = f"{formatted} ({country.name})"
+                print("Public Phone number    : " + formatted)
+            except Exception:
+                print("Public Phone number    : " + raw_phonenr)
 
     other_infos = advanced_lookup(infos["username"])
 
@@ -167,5 +168,10 @@ def main():
                 print("Obfuscated phone       : " + str(other_infos["user"]["obfuscated_phone"]))
             else:
                 print("No obfuscated phone found")
+
     print("-" * 24)
     print("Profile Picture        : " + infos["hd_profile_pic_url_info"]["url"])
+
+
+if __name__ == "__main__":
+    main()
